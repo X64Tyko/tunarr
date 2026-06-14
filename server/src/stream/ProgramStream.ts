@@ -17,6 +17,7 @@ import { match, P } from 'ts-pattern';
 import {
   ContentBackedStreamLineupItem,
   ErrorStreamLineupItem,
+  KairosStreamLineupItem,
   OfflineStreamLineupItem,
 } from '../db/derived_types/StreamLineup.ts';
 import { MediaSourceDB } from '../db/mediaSourceDB.ts';
@@ -32,6 +33,7 @@ import {
 } from '../util/index.ts';
 import { InjectLogger } from '../util/inject.ts';
 import type { PlayerContext } from './PlayerStreamContext.ts';
+import { FfprobeStreamDetails } from './FfprobeStreamDetails.ts';
 import { ProgramStreamDetailsFetcher } from './ProgramStreamDetailsFetcher.ts';
 import type { StreamRenditions } from './types.ts';
 
@@ -61,6 +63,8 @@ export class ProgramStream extends events.EventEmitter<ProgramStreamEvents> {
     @injected(MediaSourceDB) private mediaSourceDB: MediaSourceDB,
     @injected(ProgramStreamDetailsFetcher)
     private programStreamDetails: ProgramStreamDetailsFetcher,
+    @injected(FfprobeStreamDetails)
+    private ffprobeStreamDetails: FfprobeStreamDetails,
     @assisted public context: PlayerContext,
     @assisted protected outputFormat: OutputFormat,
     @assisted public opts?: Partial<StreamOptions>,
@@ -91,12 +95,76 @@ export class ProgramStream extends events.EventEmitter<ProgramStreamEvents> {
       )
       .with({ type: 'offline' }, (item) => this.setupOfflineItem(item))
       .with({ type: 'error' }, (item) => this.setupErrorItem(item))
+      .with({ type: 'kairos' }, (item) => this.setupKairosItem(item))
       .with({ type: 'redirect' }, (item) =>
         Result.failure<TranscodeSessionResult>(
           `ProgramStream cannot direct play a direct item: ${JSON.stringify(item)}`,
         ),
       )
       .exhaustive();
+  }
+
+  private async setupKairosItem(
+    lineupItem: KairosStreamLineupItem,
+  ): Promise<Result<TranscodeSessionResult>> {
+    const probeResult = await this.ffprobeStreamDetails.getStream({
+      path: lineupItem.filePath,
+    });
+
+    if (probeResult.isFailure()) {
+      return probeResult.recast();
+    }
+
+    const watermark = await this.getWatermark();
+    const ffmpeg = this.ffmpegFactory(
+      this.context.transcodeConfig,
+      this.context.sourceChannel,
+    );
+
+    const { streamDetails, streamSource } = probeResult.get();
+    streamDetails.duration = dayjs.duration(lineupItem.streamDuration);
+
+    // Build a minimal content-backed item shape so the FFmpeg pipeline can
+    // resolve audio/subtitle stream selection defaults. The fake program UUID
+    // won't match any stored selection profile, so the pipeline falls back to
+    // its channel-level defaults — which is the correct behaviour here.
+    const fakeLineupItem = {
+      type: 'program' as const,
+      infiniteLoop: false,
+      duration: lineupItem.duration,
+      streamDuration: lineupItem.streamDuration,
+      startOffset: lineupItem.startOffset ?? 0,
+      programBeginMs: lineupItem.programBeginMs,
+      program: {
+        uuid: lineupItem.itemId,
+        type: 'episode' as const,
+        title: lineupItem.title,
+        mediaSourceId: 'kairos',
+        externalIds: [],
+      },
+    } as unknown as ContentBackedStreamLineupItem;
+
+    const start = dayjs.duration(lineupItem.startOffset ?? 0);
+    const sessionResult = await ffmpeg.createStreamSession({
+      stream: { source: streamSource, details: streamDetails },
+      options: {
+        startTime: start,
+        duration: dayjs.duration(lineupItem.streamDuration),
+        watermark,
+        realtime: this.context.realtime,
+        outputFormat: this.outputFormat,
+        streamMode: this.context.streamMode,
+        encoding: this.context.encoding,
+        ...(this.opts ?? {}),
+      },
+      lineupItem: fakeLineupItem,
+    });
+
+    if (!sessionResult) {
+      return Result.forError(new Error('Unable to create ffmpeg process for Kairos item'));
+    }
+
+    return Result.success(sessionResult);
   }
 
   private async setupContentItem(

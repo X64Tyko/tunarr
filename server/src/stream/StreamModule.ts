@@ -1,3 +1,4 @@
+import { KairosClient } from '@/services/KairosClient.js';
 import { OnDemandChannelService } from '@/services/OnDemandChannelService.js';
 import type { ConcatSessionFactory } from '@/stream/ConcatSession.js';
 import { ConcatSession } from '@/stream/ConcatSession.js';
@@ -24,6 +25,7 @@ import { ProgramStreamDetailsFetcher } from './ProgramStreamDetailsFetcher.ts';
 import type { ProgramStreamFactory } from './ProgramStreamFactory.ts';
 
 const configure = ({ bind }: ContainerModuleLoadOptions) => {
+  bind(KairosClient).toSelf().inSingletonScope();
   bind(SessionManager).toSelf().inSingletonScope();
 
   bindAssistedFactory(bind, KEYS.ProgramStreamFactory, ProgramStream);

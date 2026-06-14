@@ -123,13 +123,34 @@ export type ErrorStreamLineupItem = BaseStreamLineupItem & {
   error: Error | string | boolean;
 };
 
+export type KairosStreamLineupItem = BaseStreamLineupItem & {
+  type: 'kairos';
+  filePath: string;
+  itemId: string;
+  itemType: string;
+  blockId: string;
+  channelId: string;
+  title: string;
+  showTitle?: string;
+  showId?: string;
+  season?: number;
+  episodeNum?: number;
+};
+
+export function isKairosLineupItem(
+  item: StreamLineupItem,
+): item is KairosStreamLineupItem {
+  return item.type === 'kairos';
+}
+
 export type StreamLineupItem =
   | ProgramStreamLineupItem
   | CommercialStreamLineupItem
   | OfflineStreamLineupItem
   | RedirectStreamLineupItem
   | ErrorStreamLineupItem
-  | FallbackStreamLineupItem;
+  | FallbackStreamLineupItem
+  | KairosStreamLineupItem;
 
 export function createOfflineStreamLineupItem(
   duration: number,

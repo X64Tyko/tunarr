@@ -16,6 +16,7 @@ import {
   createOfflineStreamLineupItem,
   FallbackStreamLineupItem,
   isContentBackedLineupItem,
+  KairosStreamLineupItem,
   ProgramStreamLineupItem,
   StreamLineupItem,
 } from '../db/derived_types/StreamLineup.ts';
@@ -24,6 +25,7 @@ import { IFillerListDB } from '../db/interfaces/IFillerListDB.ts';
 import { IProgramDB } from '../db/interfaces/IProgramDB.ts';
 import { ProgramPlayHistoryDB } from '../db/ProgramPlayHistoryDB.ts';
 import { OneDayMillis } from '../ffmpeg/builder/constants.ts';
+import { KairosClient } from '../services/KairosClient.ts';
 import { IFillerPicker } from '../services/interfaces/IFillerPicker.ts';
 import { WrappedError } from '../types/errors.ts';
 import { devAssert } from '../util/debug.ts';
@@ -83,6 +85,8 @@ export class StreamProgramCalculator {
     private fillerPicker: IFillerPicker,
     @inject(ProgramPlayHistoryDB)
     private programPlayHistoryDB: ProgramPlayHistoryDB,
+    @inject(KairosClient)
+    private kairosClient: KairosClient,
   ) {}
 
   async getCurrentLineupItem(
@@ -98,6 +102,10 @@ export class StreamProgramCalculator {
           `Channel ${req.channelId} doesn't exist`,
         ),
       );
+    }
+
+    if (this.kairosClient.isEnabled()) {
+      return this.getCurrentKairosLineupItem(channel, req.startTime);
     }
 
     const lineup = await this.channelDB.loadLineup(channel.uuid);
@@ -289,6 +297,71 @@ export class StreamProgramCalculator {
     return Result.success({
       lineupItem,
       channelContext,
+      sourceChannel: channel,
+    });
+  }
+
+  private async getCurrentKairosLineupItem(
+    channel: ChannelOrm,
+    nowMs: number,
+  ): Promise<Result<CurrentLineupItemResult>> {
+    const channelId = channel.uuid;
+
+    // If the previous item's scheduled window has elapsed, report it as played.
+    const prev = this.kairosClient.getLastItem(channelId);
+    if (prev !== undefined && nowMs >= prev.wallClockEndMs) {
+      this.kairosClient.clearLastItem(channelId);
+      await this.kairosClient
+        .played(channelId, prev.itemType, prev.itemId, prev.blockId, prev.durationMs)
+        .catch((err: unknown) =>
+          this.logger.error(err, 'Failed to report played to Kairos for channel %s', channelId),
+        );
+    }
+
+    let kairosItem;
+    try {
+      kairosItem = await this.kairosClient.getNow(channelId);
+    } catch (err) {
+      return Result.failure(
+        new StreamProgramCalculatorError(
+          'no_current_program',
+          `Kairos /now failed for channel ${channelId}: ${String(err)}`,
+        ),
+      );
+    }
+
+    const startOffset = Math.max(0, nowMs - kairosItem.wall_clock_start_ms);
+    const streamDuration = Math.max(0, kairosItem.duration_ms - startOffset);
+
+    this.kairosClient.setLastItem(channelId, {
+      itemId: kairosItem.item_id,
+      itemType: kairosItem.item_type,
+      blockId: kairosItem.block_id,
+      durationMs: kairosItem.duration_ms,
+      wallClockEndMs: kairosItem.wall_clock_start_ms + kairosItem.duration_ms,
+    });
+
+    const lineupItem: KairosStreamLineupItem = {
+      type: 'kairos',
+      filePath: kairosItem.file_path,
+      itemId: kairosItem.item_id,
+      itemType: kairosItem.item_type,
+      blockId: kairosItem.block_id,
+      channelId,
+      title: kairosItem.title,
+      showTitle: kairosItem.show_title,
+      showId: kairosItem.show_id,
+      season: kairosItem.season,
+      episodeNum: kairosItem.episode_num,
+      duration: kairosItem.duration_ms,
+      streamDuration,
+      startOffset,
+      programBeginMs: kairosItem.wall_clock_start_ms,
+    };
+
+    return Result.success({
+      lineupItem,
+      channelContext: channel,
       sourceChannel: channel,
     });
   }
