@@ -40,6 +40,11 @@ export class M3uService {
   private async getChannelsM3UInternal(): Promise<string> {
     devAssert(M3uService.lock.isLocked());
 
+    const kairosUrl = process.env['KAIROS_URL'];
+    if (kairosUrl) {
+      return this.getKairosChannelsM3U(kairosUrl);
+    }
+
     const cachedM3U = await attempt(() =>
       this.fileCacheService.getCache(M3uService.cacheKey),
     );
@@ -76,6 +81,33 @@ export class M3uService {
       await this.fileCacheService.setCache(M3uService.cacheKey, data);
     } catch (err) {
       this.#logger.error(err, 'Unable to set file cache for channels.m3u');
+    }
+
+    return data;
+  }
+
+  private async getKairosChannelsM3U(kairosUrl: string): Promise<string> {
+    const response = await fetch(`${kairosUrl}/api/channels`);
+    if (!response.ok) {
+      throw new Error(`Kairos channel list request failed: ${response.status}`);
+    }
+
+    type KairosChannel = { channel_id: string; name: string; number: number };
+    const channels = (await response.json()) as KairosChannel[];
+    const sorted = [...channels].sort((a, b) => a.number - b.number);
+
+    const tvg = `{{host}}/api/xmltv.xml`;
+    let data = `#EXTM3U url-tvg="${tvg}" x-tvg-url="${tvg}"\n`;
+
+    for (const channel of sorted) {
+      const channelId = getChannelId(channel.number);
+      data += `#EXTINF:-1 tvg-id="${channelId}" channel-id="${channelId}" CUID="${channelId}" tvg-chno="${channel.number}" tvg-name="${channel.name}" group-title="Kairos",${channel.name}\n`;
+      data += `{{host}}/stream/channels/${channel.number}?streamMode=mpegts\n`;
+    }
+
+    if (sorted.length === 0) {
+      data += `#EXTINF:0 tvg-id="1" tvg-chno="1" tvg-name="tunarr" tvg-logo="{{host}}/images/tunarr.png" group-title="tunarr",tunarr\n`;
+      data += `{{host}}/setup\n`;
     }
 
     return data;

@@ -242,6 +242,18 @@ export const apiRouter: RouterPluginAsyncCallback = async (fastify) => {
       try {
         const host = `${req.protocol}://${req.host}`;
 
+        const kairosUrl = process.env['KAIROS_URL'];
+        if (kairosUrl) {
+          const epgResponse = await fetch(`${kairosUrl}/epg.xml`);
+          if (!epgResponse.ok) {
+            return res.status(502).send('Kairos EPG unavailable');
+          }
+          return res
+            .header('Cache-Control', 'no-store')
+            .header('Content-Type', 'application/xml')
+            .send(await epgResponse.text());
+        }
+
         const xmltvSettings = req.serverCtx.settings.xmlTvSettings();
         const fileContent = await fsPromises.readFile(
           xmltvSettings.outputPath,
