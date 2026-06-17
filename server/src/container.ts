@@ -50,6 +50,7 @@ import { RefreshLibrariesStartupTask } from './services/startup/RefreshLibraries
 import { ScheduleJobsStartupTask } from './services/startup/ScheduleJobsStartupTask.ts';
 import { SeedFfmpegInfoCache } from './services/startup/SeedFfmpegInfoCache.ts';
 import { SeedSystemDevicesStartupTask } from './services/startup/SeedSystemDevicesStartupTask.ts';
+import { SyncKairosChannelsStartupTask } from './services/startup/SyncKairosChannelsStartupTask.ts';
 import { FixerRunner } from './tasks/fixers/FixerRunner.ts';
 import { ChildProcessHelper } from './util/ChildProcessHelper.ts';
 import { Timer } from './util/Timer.ts';
@@ -148,6 +149,7 @@ const RootModule = new ContainerModule(({ bind }) => {
   bind(KEYS.StartupTask).to(SeedFfmpegInfoCache).inSingletonScope();
   bind(KEYS.StartupTask).to(ScheduleJobsStartupTask).inSingletonScope();
   bind(KEYS.StartupTask).to(FixerRunner).inSingletonScope();
+  bind(KEYS.StartupTask).to(SyncKairosChannelsStartupTask).inSingletonScope();
   bind(KEYS.StartupTask).to(GenerateGuideStartupTask).inSingletonScope();
   bind(KEYS.StartupTask).to(RefreshLibrariesStartupTask).inSingletonScope();
 

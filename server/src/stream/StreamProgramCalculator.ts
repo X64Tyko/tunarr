@@ -25,7 +25,7 @@ import { IFillerListDB } from '../db/interfaces/IFillerListDB.ts';
 import { IProgramDB } from '../db/interfaces/IProgramDB.ts';
 import { ProgramPlayHistoryDB } from '../db/ProgramPlayHistoryDB.ts';
 import { OneDayMillis } from '../ffmpeg/builder/constants.ts';
-import { KairosClient } from '../services/KairosClient.ts';
+import { KairosClient, type KairosNowResponse } from '../services/KairosClient.ts';
 import { IFillerPicker } from '../services/interfaces/IFillerPicker.ts';
 import { WrappedError } from '../types/errors.ts';
 import { devAssert } from '../util/debug.ts';
@@ -104,7 +104,7 @@ export class StreamProgramCalculator {
       );
     }
 
-    if (this.kairosClient.isEnabled()) {
+    if (this.kairosClient.isEnabled() && channel.kairosChannelId !== null) {
       return this.getCurrentKairosLineupItem(channel, req.startTime);
     }
 
@@ -120,7 +120,6 @@ export class StreamProgramCalculator {
     let lineupItem: Maybe<StreamLineupItem>;
     let channelContext: ChannelOrm = channel;
     const redirectChannels: string[] = [];
-    const upperBounds: number[] = [];
 
     let currentProgram = await this.getCurrentProgramAndTimeElapsed(
       startTime,
@@ -136,9 +135,6 @@ export class StreamProgramCalculator {
 
     while (currentProgram.program.type === 'redirect') {
       redirectChannels.push(channelContext.uuid);
-      upperBounds.push(
-        currentProgram.program.duration - currentProgram.timeElapsed,
-      );
 
       if (redirectChannels.includes(currentProgram.program.channel)) {
         return Result.failure(
@@ -306,21 +302,32 @@ export class StreamProgramCalculator {
     nowMs: number,
   ): Promise<Result<CurrentLineupItemResult>> {
     const channelId = channel.uuid;
+    const kairosChannelId = channel.kairosChannelId;
+
+    if (kairosChannelId === null) {
+      return Result.failure(
+        new StreamProgramCalculatorError(
+          'no_current_program',
+          `Channel ${channelId} has no linked Kairos channel ID`,
+        ),
+      );
+    }
 
     // If the previous item's scheduled window has elapsed, report it as played.
+    // Cache key uses the Tunarr UUID; API calls use the Kairos channel ID.
     const prev = this.kairosClient.getLastItem(channelId);
     if (prev !== undefined && nowMs >= prev.wallClockEndMs) {
       this.kairosClient.clearLastItem(channelId);
       await this.kairosClient
-        .played(channelId, prev.itemType, prev.itemId, prev.blockId, prev.durationMs)
+        .played(kairosChannelId, prev.itemType, prev.itemId, prev.blockId, prev.durationMs)
         .catch((err: unknown) =>
           this.logger.error(err, 'Failed to report played to Kairos for channel %s', channelId),
         );
     }
 
-    let kairosItem;
+    let kairosItem: KairosNowResponse;
     try {
-      kairosItem = await this.kairosClient.getNow(channelId);
+      kairosItem = await this.kairosClient.getNow(kairosChannelId);
     } catch (err) {
       return Result.failure(
         new StreamProgramCalculatorError(
@@ -654,6 +661,12 @@ export class StreamProgramCalculator {
         startOffset: mediaStartOffset + (program.startOffset ?? 0),
         streamDuration,
       };
+    }
+
+    if (program.type === 'kairos') {
+      throw new Error(
+        'createLineupItem must not be called for Kairos lineup items',
+      );
     }
 
     return {

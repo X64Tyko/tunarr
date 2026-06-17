@@ -9,7 +9,7 @@ export const NativePlaybackContentItemSchema =
   NativePlaybackTimingSchema.extend({
     type: z.literal('content'),
     seekOffsetMs: z.number().int(),
-    programId: z.string().uuid(),
+    programId: z.string(), // may be a UUID (Tunarr programs) or a source-prefixed ID (Kairos items)
     title: z.string(),
     episodeTitle: z.string().optional(),
     seasonNumber: z.number().int().optional(),

@@ -58,6 +58,12 @@ import { MaterializeProgramGroupings } from '../commands/MaterializeProgramGroup
 import { MaterializeProgramsCommand } from '../commands/MaterializeProgramsCommand.ts';
 import { RegenerateChannelLineupCommand } from '../commands/RegenerateChannelLineupCommand.ts';
 import { container } from '../container.ts';
+import { KairosChannelSync } from '../services/KairosChannelSync.ts';
+import {
+  KairosClient,
+  type KairosEpgItem,
+  type KairosNowResponse,
+} from '../services/KairosClient.js';
 import { transcodeConfigOrmToDto } from '../db/converters/transcodeConfigConverters.ts';
 import type { ChannelAndLineup } from '../db/interfaces/IChannelDB.ts';
 import type { SessionType } from '../stream/Session.ts';
@@ -65,6 +71,29 @@ import { Result } from '../types/result.ts';
 import { PagingParams } from '../types/schemas.ts';
 
 dayjs.extend(duration);
+
+function kairosItemToGuideProgram(
+  item: KairosEpgItem | KairosNowResponse,
+  stopMs?: number,
+): { type: 'flex'; title: string; duration: number; start: number; stop: number; isPaused: false } {
+  const title =
+    item.show_title !== undefined
+      ? `${item.show_title} - ${item.title}`
+      : item.title;
+  const stop =
+    stopMs !== undefined
+      ? stopMs
+      : (item as KairosEpgItem).wall_clock_end_ms ??
+        item.wall_clock_start_ms + item.duration_ms;
+  return {
+    type: 'flex' as const,
+    title,
+    duration: item.duration_ms,
+    start: item.wall_clock_start_ms,
+    stop,
+    isPaused: false,
+  };
+}
 
 const ChannelLineupQuery = z.object({
   from: z.iso.datetime().optional().pipe(z.coerce.date()),
@@ -140,6 +169,52 @@ export const channelsApi: RouterPluginAsyncCallback = async (fastify) => {
         }),
         'number',
       );
+
+      const kairosClient = container.get(KairosClient);
+      if (kairosClient.isEnabled()) {
+        try {
+          // Channels already synced into Tunarr's DB are keyed by their own
+          // generated UUID (see KairosChannelSync), not by the raw Kairos
+          // channel_id, so dedupe against kairosChannelId rather than id.
+          const knownKairosIds = new Set(
+            map(channelsAndLineups, (c) => c.channel.kairosChannelId).filter(
+              (id): id is string => !isNil(id),
+            ),
+          );
+          const kairosChannels = await kairosClient.getChannels();
+          const transcodeConfigs =
+            await req.serverCtx.transcodeConfigDB.getAll();
+          const defaultTranscodeConfigId =
+            transcodeConfigs.find((tc) => tc.isDefault)?.uuid ??
+            transcodeConfigs[0]?.uuid ??
+            '';
+          for (const ch of kairosChannels) {
+            if (!knownKairosIds.has(ch.channel_id)) {
+              result.push({
+                id: ch.channel_id,
+                name: ch.name,
+                number: ch.number,
+                groupTitle: 'Kairos',
+                stealth: false,
+                startTime: 0,
+                duration: 0,
+                programCount: 0,
+                guideMinimumDuration: 300_000,
+                disableFillerOverlay: false,
+                streamMode: 'hls',
+                transcodeConfigId: defaultTranscodeConfigId,
+                subtitlesEnabled: false,
+                icon: { path: '', width: 0, duration: 0, position: 'bottom-right' },
+                offline: { mode: 'pic' },
+                onDemand: { enabled: false },
+                sessions: [],
+              });
+            }
+          }
+        } catch (err) {
+          logger.warn(err, 'Failed to fetch Kairos channels for channel list');
+        }
+      }
 
       return res.send(result);
     },
@@ -649,6 +724,70 @@ export const channelsApi: RouterPluginAsyncCallback = async (fastify) => {
         return res.status(400).send('Invalid date range');
       }
 
+      const kairosClient = container.get(KairosClient);
+      if (kairosClient.isEnabled()) {
+        try {
+          const hours =
+            dateRange.from && dateRange.to
+              ? Math.max(
+                  1,
+                  Math.ceil(
+                    (dateRange.to.valueOf() - dateRange.from.valueOf()) /
+                      3600_000,
+                  ),
+                )
+              : 4;
+
+          // Build kairosChannelId → tunarr UUID map so we can return UUIDs.
+          const allTunarrChannels =
+            await req.serverCtx.channelDB.getAllChannels();
+          const kairosIdToUuid = new Map(
+            allTunarrChannels
+              .filter(
+                (c): c is typeof c & { kairosChannelId: string } =>
+                  c.kairosChannelId !== null,
+              )
+              .map((c) => [c.kairosChannelId, c.uuid] as const),
+          );
+
+          // Fetch EPG from Kairos for each Kairos channel, keyed by Tunarr UUID.
+          const kairosChannels = await kairosClient.getChannels();
+          const kairosLineups = await Promise.all(
+            kairosChannels.map(async (ch) => {
+              const items = await kairosClient.getChannelEpg(
+                ch.channel_id,
+                hours,
+              );
+              const programs = items
+                .filter(
+                  (item) =>
+                    (!dateRange.to ||
+                      item.wall_clock_start_ms < dateRange.to.valueOf()) &&
+                    (!dateRange.from ||
+                      item.wall_clock_end_ms > dateRange.from.valueOf()),
+                )
+                .map((item) => kairosItemToGuideProgram(item));
+              return {
+                id: kairosIdToUuid.get(ch.channel_id) ?? ch.channel_id,
+                name: ch.name,
+                number: ch.number,
+                programs,
+              };
+            }),
+          );
+
+          // Also include non-Kairos channels from the normal guide service.
+          const kairosUuids = new Set(kairosIdToUuid.values());
+          const nonKairosGuides = (
+            await req.serverCtx.guideService.getAllChannelGuides(dateRange)
+          ).filter((g) => !kairosUuids.has(g.id));
+
+          return res.status(200).send([...kairosLineups, ...nonKairosGuides]);
+        } catch (err) {
+          logger.error(err, 'Kairos guide fetch failed for all lineups');
+        }
+      }
+
       return res
         .status(200)
         .send(await req.serverCtx.guideService.getAllChannelGuides(dateRange));
@@ -674,6 +813,57 @@ export const channelsApi: RouterPluginAsyncCallback = async (fastify) => {
 
       if (isNull(dateRange)) {
         return res.status(400).send({ error: 'Invalid date range' });
+      }
+
+      const kairosClient = container.get(KairosClient);
+      if (kairosClient.isEnabled()) {
+        try {
+          const tunarrChannel = await req.serverCtx.channelDB.getChannelOrm(
+            req.params.id,
+          );
+          const kairosChannelId = tunarrChannel?.kairosChannelId ?? null;
+          if (kairosChannelId !== null) {
+            const channels = await kairosClient.getChannels();
+            const ch = channels.find((c) => c.channel_id === kairosChannelId);
+            if (ch !== undefined) {
+              const hours =
+                dateRange.from && dateRange.to
+                  ? Math.max(
+                      1,
+                      Math.ceil(
+                        (dateRange.to.valueOf() - dateRange.from.valueOf()) /
+                          3600_000,
+                      ),
+                    )
+                  : 4;
+              const items = await kairosClient.getChannelEpg(
+                kairosChannelId,
+                hours,
+              );
+              const programs = items
+                .filter(
+                  (item) =>
+                    (!dateRange.to ||
+                      item.wall_clock_start_ms < dateRange.to.valueOf()) &&
+                    (!dateRange.from ||
+                      item.wall_clock_end_ms > dateRange.from.valueOf()),
+                )
+                .map((item) => kairosItemToGuideProgram(item));
+              return res.send({
+                id: req.params.id,
+                name: ch.name,
+                number: ch.number,
+                programs,
+              });
+            }
+          }
+        } catch (err) {
+          logger.error(
+            err,
+            'Kairos guide fetch failed for channel %s',
+            req.params.id,
+          );
+        }
       }
 
       const guide = await req.serverCtx.guideService.getChannelGuide(
@@ -703,6 +893,31 @@ export const channelsApi: RouterPluginAsyncCallback = async (fastify) => {
       },
     },
     async (req, res) => {
+      const kairosClient = container.get(KairosClient);
+      if (kairosClient.isEnabled()) {
+        try {
+          const tunarrChannel = await req.serverCtx.channelDB.getChannelOrm(
+            req.params.id,
+          );
+          const kairosChannelId = tunarrChannel?.kairosChannelId ?? null;
+          if (kairosChannelId !== null) {
+            const nowItem = await kairosClient.getNow(kairosChannelId);
+            return res.send(
+              kairosItemToGuideProgram(
+                nowItem,
+                nowItem.wall_clock_start_ms + nowItem.duration_ms,
+              ),
+            );
+          }
+        } catch (err) {
+          logger.error(
+            err,
+            'Kairos /now failed for channel %s',
+            req.params.id,
+          );
+        }
+      }
+
       const now = dayjs();
       const guide = await req.serverCtx.guideService.getChannelGuide(
         req.params.id,
@@ -714,6 +929,66 @@ export const channelsApi: RouterPluginAsyncCallback = async (fastify) => {
       }
 
       return res.send(head(guide.programs));
+    },
+  );
+
+  fastify.post(
+    '/channels/kairos/sync',
+    {
+      schema: {
+        operationId: 'syncKairosChannels',
+        tags: ['Channels'],
+        response: {
+          200: z.object({ synced: z.number() }),
+          503: z.object({ error: z.string() }),
+          500: z.object({ error: z.string() }),
+        },
+      },
+    },
+    async (_req, res) => {
+      const kairosClient = container.get(KairosClient);
+      if (!kairosClient.isEnabled()) {
+        return res
+          .status(503)
+          .send({ error: 'Kairos integration is not enabled' });
+      }
+      try {
+        const synced = await container.get(KairosChannelSync).sync();
+        return res.send({ synced });
+      } catch (err) {
+        logger.error(err, 'Kairos channel sync failed');
+        return res.status(500).send({ error: 'Sync failed' });
+      }
+    },
+  );
+
+  fastify.post(
+    '/channels/kairos/force-sync',
+    {
+      schema: {
+        operationId: 'forceSyncKairosChannels',
+        tags: ['Channels'],
+        response: {
+          200: z.object({ synced: z.number() }),
+          503: z.object({ error: z.string() }),
+          500: z.object({ error: z.string() }),
+        },
+      },
+    },
+    async (_req, res) => {
+      const kairosClient = container.get(KairosClient);
+      if (!kairosClient.isEnabled()) {
+        return res
+          .status(503)
+          .send({ error: 'Kairos integration is not enabled' });
+      }
+      try {
+        const synced = await container.get(KairosChannelSync).forceSync();
+        return res.send({ synced });
+      } catch (err) {
+        logger.error(err, 'Kairos channel force sync failed');
+        return res.status(500).send({ error: 'Force sync failed' });
+      }
     },
   );
 

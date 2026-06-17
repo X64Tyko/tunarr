@@ -1376,6 +1376,7 @@ export class TVGuideService {
       updatedAt: +dayjs(),
       fillerRepeatCooldown: null,
       groupTitle: null,
+      kairosChannelId: null,
       watermark: null,
       transcoding: null,
       programs: [],

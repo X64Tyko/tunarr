@@ -4,6 +4,7 @@ import type { Maybe } from '@/types/util.ts';
 import { Plural, Trans, useLingui } from '@lingui/react/macro';
 import { Check, Close, Edit, MoreVert } from '@mui/icons-material';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import SyncIcon from '@mui/icons-material/Sync';
 import type { BoxProps } from '@mui/material';
 import {
   Box,
@@ -11,6 +12,7 @@ import {
   Card,
   CardActionArea,
   CardContent,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,6 +20,7 @@ import {
   DialogTitle,
   IconButton,
   Paper,
+  Snackbar,
   Stack,
   TableContainer,
   TablePagination,
@@ -57,6 +60,7 @@ import { deleteApiChannelsByIdMutation } from '../../generated/@tanstack/react-q
 import { useChannelsSuspense } from '../../hooks/useChannels.ts';
 import { useServerEvents } from '../../hooks/useServerEvents.ts';
 import { useStoreBackedTableSettings } from '../../hooks/useTableSettings.ts';
+import { useSettings } from '../../store/settings/selectors.ts';
 
 type ChannelRow = Channel;
 
@@ -97,6 +101,7 @@ export default function ChannelsPage() {
   const mediumViewport = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { backendUri } = useSettings();
   const [deleteChannelConfirmation, setDeleteChannelConfirmation] = useState<
     Channel | undefined
   >(undefined);
@@ -106,6 +111,51 @@ export default function ChannelsPage() {
   const [channelMenuOpen, setChannelMenuOpen] = React.useState<string | null>(
     null,
   );
+  const [syncLoading, setSyncLoading] = React.useState(false);
+  const [syncSnackbar, setSyncSnackbar] = React.useState<string | null>(null);
+  const [forceSyncLoading, setForceSyncLoading] = React.useState(false);
+  const [forceSyncConfirmOpen, setForceSyncConfirmOpen] = useState(false);
+
+  const handleKairosSync = async () => {
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`${backendUri}/api/channels/kairos/sync`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { synced: number };
+        setSyncSnackbar(`Synced ${data.synced} Kairos channel(s)`);
+        await queryClient.invalidateQueries({ queryKey: ['Channels'] });
+      } else {
+        setSyncSnackbar('Sync failed');
+      }
+    } catch {
+      setSyncSnackbar('Sync failed');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleForceKairosSync = async () => {
+    setForceSyncConfirmOpen(false);
+    setForceSyncLoading(true);
+    try {
+      const res = await fetch(`${backendUri}/api/channels/kairos/force-sync`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { synced: number };
+        setSyncSnackbar(`Force synced ${data.synced} Kairos channel(s)`);
+        await queryClient.invalidateQueries({ queryKey: ['Channels'] });
+      } else {
+        setSyncSnackbar('Force sync failed');
+      }
+    } catch {
+      setSyncSnackbar('Force sync failed');
+    } finally {
+      setForceSyncLoading(false);
+    }
+  };
   const tableSettings = useStoreBackedTableSettings('Channels');
   const { addListener, removeListener } = useServerEvents();
 
@@ -208,6 +258,42 @@ export default function ChannelsPage() {
             </DialogActions>
           </>
         )}
+      </Dialog>
+    );
+  };
+
+  const renderForceSyncConfirmationDialog = () => {
+    return (
+      <Dialog
+        open={forceSyncConfirmOpen}
+        onClose={() => setForceSyncConfirmOpen(false)}
+        aria-labelledby="force-sync-title"
+        aria-describedby="force-sync-description"
+      >
+        <DialogTitle id="force-sync-title">
+          <Trans>Force Sync Kairos Channels?</Trans>
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="force-sync-description">
+            <Trans>
+              This will delete all Kairos-synced channels from Tunarr and
+              pull a fresh copy from Kairos. Use this if a channel is stuck
+              or misconfigured. This action cannot be undone.
+            </Trans>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setForceSyncConfirmOpen(false)} autoFocus>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button
+            onClick={() => void handleForceKairosSync()}
+            variant="contained"
+            color="warning"
+          >
+            <Trans>Force Sync</Trans>
+          </Button>
+        </DialogActions>
       </Dialog>
     );
   };
@@ -560,11 +646,49 @@ export default function ChannelsPage() {
 
   return (
     <div>
-      <Box display="flex" mb={2}>
+      <Box display="flex" mb={2} gap={1} alignItems="center">
         {renderConfirmationDialog()}
+        {renderForceSyncConfirmationDialog()}
         <Typography flexGrow={1} variant="h3">
           <Trans>Channels</Trans>
         </Typography>
+        <Tooltip title={t`Sync channels from Kairos`}>
+          <span>
+            <Button
+              variant="outlined"
+              startIcon={
+                syncLoading ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <SyncIcon />
+                )
+              }
+              onClick={() => void handleKairosSync()}
+              disabled={syncLoading}
+            >
+              <Trans>Sync Kairos</Trans>
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title={t`Delete and re-pull all Kairos channels`}>
+          <span>
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={
+                forceSyncLoading ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <SyncIcon />
+                )
+              }
+              onClick={() => setForceSyncConfirmOpen(true)}
+              disabled={forceSyncLoading}
+            >
+              <Trans>Force Sync Kairos</Trans>
+            </Button>
+          </span>
+        </Tooltip>
         <RouterButtonLink
           to="/channels/new"
           variant="contained"
@@ -573,6 +697,12 @@ export default function ChannelsPage() {
           <Trans>New</Trans>
         </RouterButtonLink>
       </Box>
+      <Snackbar
+        open={syncSnackbar !== null}
+        autoHideDuration={4000}
+        onClose={() => setSyncSnackbar(null)}
+        message={syncSnackbar}
+      />
 
       {smallViewport ? (
         renderMobileCards()

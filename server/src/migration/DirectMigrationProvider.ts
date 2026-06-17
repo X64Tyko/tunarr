@@ -227,6 +227,10 @@ export class DirectMigrationProvider implements MigrationProvider {
         migration1777908252: makeMigrationFromSqlFile(
           './sql/0044_useful_groot.sql',
         ),
+        // AddChannelKairosChannelId
+        migration1781650000: makeMigrationFromSqlFile(
+          './sql/0045_add_channel_kairos_channel_id.sql',
+        ),
       } satisfies Record<string, TunarrDatabaseMigration>,
       wrapWithTransaction,
     );

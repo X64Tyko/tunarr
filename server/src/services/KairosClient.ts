@@ -1,5 +1,27 @@
 import { injectable } from 'inversify';
 
+export type KairosChannel = {
+  channel_id: string;
+  name: string;
+  number: number;
+};
+
+export type KairosEpgItem = {
+  item_type: string;
+  item_id: string;
+  block_id: string;
+  wall_clock_start_ms: number;
+  wall_clock_end_ms: number;
+  status: string;
+  title: string;
+  file_path: string;
+  duration_ms: number;
+  show_title?: string;
+  show_id?: string;
+  season?: number;
+  episode_num?: number;
+};
+
 export type KairosNowResponse = {
   item_type: string;
   item_id: string;
@@ -44,7 +66,7 @@ export class KairosClient {
         `Kairos /now returned HTTP ${res.status} for channel ${channelId}`,
       );
     }
-    return res.json() as Promise<KairosNowResponse>;
+    return (await res.json()) as KairosNowResponse;
   }
 
   async played(
@@ -85,5 +107,25 @@ export class KairosClient {
 
   clearLastItem(channelId: string): void {
     this.lastItems.delete(channelId);
+  }
+
+  async getChannels(): Promise<KairosChannel[]> {
+    const res = await fetch(`${this.baseUrl}/api/channels`);
+    if (!res.ok) {
+      throw new Error(`Kairos /api/channels returned HTTP ${res.status}`);
+    }
+    return (await res.json()) as KairosChannel[];
+  }
+
+  async getChannelEpg(channelId: string, hours: number = 24): Promise<KairosEpgItem[]> {
+    const res = await fetch(
+      `${this.baseUrl}/api/channels/${channelId}/epg?hours=${hours}`,
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Kairos /api/channels/${channelId}/epg returned HTTP ${res.status}`,
+      );
+    }
+    return (await res.json()) as KairosEpgItem[];
   }
 }

@@ -51,9 +51,13 @@ export const Channel = sqliteTable(
       () => StreamSelectionProfile.uuid,
       { onDelete: 'set null' },
     ),
+    kairosChannelId: text(),
   },
   (table) => [
     uniqueIndex('channel_number_unique').on(table.number),
+    uniqueIndex('channel_kairos_channel_id_unique').on(
+      table.kairosChannelId,
+    ),
     check(
       'channel_stream_mode_check',
       inArray(table.streamMode, table.streamMode.enumValues).inlineParams(),

@@ -8,6 +8,7 @@ import z from 'zod/v4';
 import type { StreamLineupItem } from '../db/derived_types/StreamLineup.ts';
 import {
   isContentBackedLineupItem,
+  isKairosLineupItem,
   isOfflineLineupItem,
 } from '../db/derived_types/StreamLineup.ts';
 
@@ -51,6 +52,21 @@ export function mapLineupItemToPlaybackItem(
       episodeNumber: program.episode ?? undefined,
       summary: program.summary ?? undefined,
       thumb: program.icon ?? undefined,
+      streamUrl: buildStreamUrl(baseUrl, channelId, itemStartedAtMs),
+    };
+  }
+
+  if (isKairosLineupItem(lineupItem)) {
+    return {
+      type: 'content',
+      itemStartedAtMs,
+      seekOffsetMs: lineupItem.startOffset ?? 0,
+      remainingMs,
+      programId: lineupItem.itemId,
+      title: lineupItem.showTitle ?? lineupItem.title,
+      episodeTitle: lineupItem.showTitle ? lineupItem.title : undefined,
+      seasonNumber: lineupItem.season,
+      episodeNumber: lineupItem.episodeNum,
       streamUrl: buildStreamUrl(baseUrl, channelId, itemStartedAtMs),
     };
   }
