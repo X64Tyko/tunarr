@@ -39,6 +39,10 @@ jobs:
             type=raw,value=latest
             type=sha,prefix=sha-
 
+      - name: Get version from package.json
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -49,5 +53,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             exec_target=linux-x64
+            tunarr_version=${{ steps.pkg.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
