@@ -89,7 +89,9 @@ export class NvidiaHardwareCapabilities extends BaseFfmpegHardwareCapabilities {
 
     if (videoFormat === VideoFormats.Hevc) {
       if (bitDepth === 10) {
-        return this.arch >= 60;
+        // NVENC HEVC Main10 (10-bit) requires Volta (SM 7.0) or newer.
+        // Pascal (SM 6.x, e.g. GTX 1080) only supports HEVC 8-bit via NVENC.
+        return this.arch >= 70;
       } else {
         return this.arch >= 52;
       }
