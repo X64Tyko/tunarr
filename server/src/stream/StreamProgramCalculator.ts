@@ -364,6 +364,8 @@ export class StreamProgramCalculator {
       streamDuration,
       startOffset,
       programBeginMs: kairosItem.wall_clock_start_ms,
+      sourceId: kairosItem.source_id,
+      externalId: kairosItem.external_id,
     };
 
     return Result.success({

@@ -135,6 +135,8 @@ export type KairosStreamLineupItem = BaseStreamLineupItem & {
   showId?: string;
   season?: number;
   episodeNum?: number;
+  sourceId?: string;
+  externalId?: string;
 };
 
 export function isKairosLineupItem(
