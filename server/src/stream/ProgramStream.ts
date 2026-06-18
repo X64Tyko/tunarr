@@ -21,6 +21,7 @@ import {
   OfflineStreamLineupItem,
 } from '../db/derived_types/StreamLineup.ts';
 import { MediaSourceDB } from '../db/mediaSourceDB.ts';
+import { KairosClient } from '../services/KairosClient.ts';
 import type { FFmpegAssistedFactory } from '../ffmpeg/FFmpegModule.ts';
 import type { StreamOptions } from '../ffmpeg/types.ts';
 import { KEYS } from '../types/inject.ts';
@@ -65,6 +66,7 @@ export class ProgramStream extends events.EventEmitter<ProgramStreamEvents> {
     private programStreamDetails: ProgramStreamDetailsFetcher,
     @injected(FfprobeStreamDetails)
     private ffprobeStreamDetails: FfprobeStreamDetails,
+    @injected(KairosClient) private kairosClient: KairosClient,
     @assisted public context: PlayerContext,
     @assisted protected outputFormat: OutputFormat,
     @assisted public opts?: Partial<StreamOptions>,
@@ -124,10 +126,46 @@ export class ProgramStream extends events.EventEmitter<ProgramStreamEvents> {
     const { streamDetails, streamSource } = probeResult.get();
     streamDetails.duration = dayjs.duration(lineupItem.streamDuration);
 
+    // Resolve media source info from Kairos so the FFmpeg pipeline can look up
+    // any pre-extracted subtitle cache files using the correct external key.
+    let resolvedMediaSourceId = 'kairos';
+    let resolvedSourceType: string | undefined;
+    let resolvedExternalKey: string | undefined;
+
+    if (
+      lineupItem.sourceId !== undefined &&
+      lineupItem.externalId !== undefined
+    ) {
+      try {
+        const [kairosSources, tunarrSources] = await Promise.all([
+          this.kairosClient.getMediaSources(),
+          this.mediaSourceDB.getAll(),
+        ]);
+        const kairosSource = kairosSources.find(
+          (s) => s.source_id === lineupItem.sourceId,
+        );
+        if (kairosSource !== undefined) {
+          const normalizedKairosUrl = kairosSource.base_url.replace(/\/$/, '');
+          const matched = tunarrSources.find(
+            (ts) => ts.uri.replace(/\/$/, '') === normalizedKairosUrl,
+          );
+          if (matched !== undefined) {
+            resolvedMediaSourceId = matched.uuid;
+            resolvedSourceType = matched.type;
+          }
+        }
+        resolvedExternalKey = lineupItem.externalId;
+      } catch (e) {
+        this.logger.warn(
+          e,
+          'Failed to resolve Kairos media source for item %s; subtitle extraction will be skipped',
+          lineupItem.itemId,
+        );
+      }
+    }
+
     // Build a minimal content-backed item shape so the FFmpeg pipeline can
-    // resolve audio/subtitle stream selection defaults. The fake program UUID
-    // won't match any stored selection profile, so the pipeline falls back to
-    // its channel-level defaults — which is the correct behaviour here.
+    // resolve audio/subtitle stream selection defaults.
     const fakeLineupItem = {
       type: 'program' as const,
       infiniteLoop: false,
@@ -139,7 +177,9 @@ export class ProgramStream extends events.EventEmitter<ProgramStreamEvents> {
         uuid: lineupItem.itemId,
         type: 'episode' as const,
         title: lineupItem.title,
-        mediaSourceId: 'kairos',
+        mediaSourceId: resolvedMediaSourceId,
+        sourceType: resolvedSourceType,
+        externalKey: resolvedExternalKey,
         externalIds: [],
       },
     } as unknown as ContentBackedStreamLineupItem;

@@ -34,6 +34,16 @@ export type KairosNowResponse = {
   show_id?: string;
   season?: number;
   episode_num?: number;
+  source_id?: string;
+  external_id?: string;
+};
+
+export type KairosMediaSource = {
+  source_id: string;
+  source_type: string;
+  display_name: string;
+  base_url: string;
+  enabled: boolean;
 };
 
 type KairosLastItem = {
@@ -115,6 +125,14 @@ export class KairosClient {
       throw new Error(`Kairos /api/channels returned HTTP ${res.status}`);
     }
     return (await res.json()) as KairosChannel[];
+  }
+
+  async getMediaSources(): Promise<KairosMediaSource[]> {
+    const res = await fetch(`${this.baseUrl}/api/sources`);
+    if (!res.ok) {
+      throw new Error(`Kairos /api/sources returned HTTP ${res.status}`);
+    }
+    return (await res.json()) as KairosMediaSource[];
   }
 
   async getChannelEpg(channelId: string, hours: number = 24): Promise<KairosEpgItem[]> {

@@ -6,9 +6,9 @@ import type { Maybe, Nullable } from '../types/util.ts';
 
 type MinimalProgram = {
   id: string;
-  externalSourceType: MediaSourceType;
-  externalSourceId: MediaSourceId;
-  externalKey: string;
+  externalSourceType: Maybe<MediaSourceType>;
+  externalSourceId: Maybe<MediaSourceId>;
+  externalKey: Maybe<string>;
 };
 
 export function subtitleCodecToExt(codec: string): Nullable<string> {
@@ -50,9 +50,9 @@ function getSubtitleCacheFileName(
   return crypto
     .createHash('md5')
     .update(program.id)
-    .update(program.externalSourceType)
-    .update(program.externalSourceId)
-    .update(program.externalKey)
+    .update(program.externalSourceType ?? '')
+    .update(program.externalSourceId ?? '')
+    .update(program.externalKey ?? '')
     .update(streamIndex?.toString() ?? '')
     .update(codec)
     .digest('hex');
