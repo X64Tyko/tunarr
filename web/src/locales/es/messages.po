@@ -45,7 +45,7 @@ msgstr ""
 #. placeholder {0}: value?.programCount ?? 0
 #: src/components/channel_config/ChannelLineupList.tsx:525
 #: src/components/slot_scheduler/FillerListSlotProgrammingForm.tsx:47
-#: src/pages/channels/ChannelsPage.tsx:492
+#: src/pages/channels/ChannelsPage.tsx:578
 msgid "{0, plural, one {# program} other {# programs}}"
 msgstr ""
 
@@ -66,8 +66,8 @@ msgid "{0, plural, one {# Selected Item} other {# Selected Items}}"
 msgstr ""
 
 #. placeholder {0}: sessions.length
-#: src/pages/channels/ChannelsPage.tsx:293
-#: src/pages/channels/ChannelsPage.tsx:423
+#: src/pages/channels/ChannelsPage.tsx:379
+#: src/pages/channels/ChannelsPage.tsx:509
 msgid "{0, plural, one {# session} other {# sessions}}"
 msgstr ""
 
@@ -210,13 +210,13 @@ msgstr ""
 msgid "{remainingTime} left"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:296
-#: src/pages/channels/ChannelsPage.tsx:426
+#: src/pages/channels/ChannelsPage.tsx:382
+#: src/pages/channels/ChannelsPage.tsx:512
 msgid "{totalConnections, plural, one {# connection} other {# connections}}"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:295
-#: src/pages/channels/ChannelsPage.tsx:425
+#: src/pages/channels/ChannelsPage.tsx:381
+#: src/pages/channels/ChannelsPage.tsx:511
 msgid "{totalConnections} total"
 msgstr ""
 
@@ -232,7 +232,7 @@ msgstr ""
 msgid "# of Programs"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:342
+#: src/pages/channels/ChannelsPage.tsx:428
 #: src/pages/library/CustomShowsPage.tsx:160
 #: src/pages/library/FillerListsPage.tsx:166
 msgid "# Programs"
@@ -798,7 +798,8 @@ msgstr ""
 #: src/components/slot_scheduler/SlotSchedulerCyclicShuffleDialog.tsx:301
 #: src/components/smart_collections/CreateSmartCollectionDialog.tsx:189
 #: src/components/smart_collections/EditSmartCollectionDialog.tsx:114
-#: src/pages/channels/ChannelsPage.tsx:200
+#: src/pages/channels/ChannelsPage.tsx:250
+#: src/pages/channels/ChannelsPage.tsx:287
 #: src/pages/library/CustomShowsPage.tsx:105
 #: src/pages/library/FillerListsPage.tsx:115
 msgid "Cancel"
@@ -885,7 +886,7 @@ msgstr ""
 #: src/App.tsx:95
 #: src/hooks/useNavItems.tsx:63
 #: src/hooks/useRouteName.ts:38
-#: src/pages/channels/ChannelsPage.tsx:566
+#: src/pages/channels/ChannelsPage.tsx:653
 #: src/pages/system/TroubleshootPage.tsx:636
 msgid "Channels"
 msgstr ""
@@ -1196,7 +1197,7 @@ msgstr ""
 #: src/components/DeleteConfirmationDialog.tsx:59
 #: src/components/settings/ffmpeg/TranscodeConfigsTable.tsx:75
 #: src/components/smart_collections/SmartCollectionsTable.tsx:124
-#: src/pages/channels/ChannelsPage.tsx:206
+#: src/pages/channels/ChannelsPage.tsx:256
 #: src/pages/library/CustomShowsPage.tsx:113
 #: src/pages/library/CustomShowsPage.tsx:132
 #: src/pages/library/FillerListsPage.tsx:123
@@ -1209,8 +1210,12 @@ msgstr ""
 msgid "Delete \"{0}\""
 msgstr ""
 
+#: src/pages/channels/ChannelsPage.tsx:673
+msgid "Delete and re-pull all Kairos channels"
+msgstr ""
+
 #: src/components/channels/ChannelOptionsMenu.tsx:225
-#: src/pages/channels/ChannelsPage.tsx:185
+#: src/pages/channels/ChannelsPage.tsx:235
 msgid "Delete Channel"
 msgstr ""
 
@@ -1251,7 +1256,7 @@ msgid "Delete Transcoding Config \"{0}\"?"
 msgstr ""
 
 #: src/components/channels/ChannelDeleteDialog.tsx:72
-#: src/pages/channels/ChannelsPage.tsx:189
+#: src/pages/channels/ChannelsPage.tsx:239
 msgid "Deleting a Channel will remove all programming from the channel. This action cannot be undone."
 msgstr ""
 
@@ -1385,7 +1390,7 @@ msgstr ""
 #: src/components/programming_controls/BalanceProgrammingModal.tsx:62
 #: src/components/slot_scheduler/EditRandomSlotDialogContent.tsx:466
 #: src/components/slot_scheduler/RandomSlotTable.tsx:233
-#: src/pages/channels/ChannelsPage.tsx:346
+#: src/pages/channels/ChannelsPage.tsx:432
 #: src/pages/system/TroubleshootPage.tsx:521
 msgid "Duration"
 msgstr ""
@@ -1431,7 +1436,7 @@ msgstr ""
 msgid "Edit Channel Redirect"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:236
+#: src/pages/channels/ChannelsPage.tsx:322
 msgid "Edit Channel Settings"
 msgstr ""
 
@@ -1954,6 +1959,18 @@ msgstr ""
 msgid "Force Scan"
 msgstr ""
 
+#: src/pages/channels/ChannelsPage.tsx:294
+msgid "Force Sync"
+msgstr ""
+
+#: src/pages/channels/ChannelsPage.tsx:688
+msgid "Force Sync Kairos"
+msgstr ""
+
+#: src/pages/channels/ChannelsPage.tsx:274
+msgid "Force Sync Kairos Channels?"
+msgstr ""
+
 #: src/pages/system/TroubleshootPage.tsx:689
 msgid "Forced"
 msgstr ""
@@ -2047,7 +2064,7 @@ msgstr ""
 msgid "HLS Direct Output Format"
 msgstr ""
 
-#: src/components/Video.tsx:95
+#: src/components/Video.tsx:138
 msgid "HLS not supported in this browser!"
 msgstr ""
 
@@ -2075,7 +2092,7 @@ msgstr ""
 msgid "HW Acceleration"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:314
+#: src/pages/channels/ChannelsPage.tsx:400
 msgid "Icon"
 msgstr ""
 
@@ -2298,7 +2315,7 @@ msgstr ""
 msgid "Load More"
 msgstr ""
 
-#: src/components/Video.tsx:122
+#: src/components/Video.tsx:171
 msgid "Load Stream"
 msgstr ""
 
@@ -2576,7 +2593,7 @@ msgstr ""
 #: src/components/smart_collections/CreateSmartCollectionDialog.tsx:162
 #: src/components/smart_collections/EditSmartCollectionDialog.tsx:108
 #: src/components/smart_collections/SmartCollectionsTable.tsx:59
-#: src/pages/channels/ChannelsPage.tsx:337
+#: src/pages/channels/ChannelsPage.tsx:423
 #: src/pages/library/CustomShowsPage.tsx:146
 #: src/pages/library/FillerListsPage.tsx:162
 #: src/pages/settings/MediaSourceSettingsPage.tsx:82
@@ -2604,7 +2621,7 @@ msgstr ""
 #: src/hooks/useRouteName.ts:51
 #: src/hooks/useRouteName.ts:113
 #: src/hooks/useRouteName.ts:125
-#: src/pages/channels/ChannelsPage.tsx:573
+#: src/pages/channels/ChannelsPage.tsx:697
 #: src/pages/library/CustomShowsPage.tsx:223
 #: src/pages/library/FillerListsPage.tsx:237
 msgid "New"
@@ -2651,8 +2668,8 @@ msgstr ""
 msgid "Next Scheduled Execution"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:272
-#: src/pages/channels/ChannelsPage.tsx:403
+#: src/pages/channels/ChannelsPage.tsx:358
+#: src/pages/channels/ChannelsPage.tsx:489
 msgid "No active sessions"
 msgstr ""
 
@@ -2721,7 +2738,7 @@ msgstr ""
 msgid "Now Playing:"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:331
+#: src/pages/channels/ChannelsPage.tsx:417
 msgid "Number"
 msgstr ""
 
@@ -2746,7 +2763,7 @@ msgstr ""
 msgid "On-Demand channels resume from where you left off. Programming is paused when the channel is not streaming.<0/><1>NOTE:</1> While the channel is inactive, the TV Guide for the channel will be empty."
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:365
+#: src/pages/channels/ChannelsPage.tsx:451
 msgid "On-Demand?"
 msgstr ""
 
@@ -3126,7 +3143,7 @@ msgstr ""
 msgid "Release Date (desc)"
 msgstr ""
 
-#: src/components/Video.tsx:122
+#: src/components/Video.tsx:171
 msgid "Reload Stream"
 msgstr ""
 
@@ -3678,7 +3695,7 @@ msgstr ""
 msgid "Stealth Mode"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:354
+#: src/pages/channels/ChannelsPage.tsx:440
 msgid "Stealth?"
 msgstr ""
 
@@ -3749,6 +3766,14 @@ msgstr ""
 
 #: src/pages/settings/ScannerSettingsPage.tsx:32
 msgid "Successfully updated Media Source settings."
+msgstr ""
+
+#: src/pages/channels/ChannelsPage.tsx:655
+msgid "Sync channels from Kairos"
+msgstr ""
+
+#: src/pages/channels/ChannelsPage.tsx:669
+msgid "Sync Kairos"
 msgstr ""
 
 #: src/components/custom-shows/EditCustomShowForm.tsx:384
@@ -3941,6 +3966,10 @@ msgstr ""
 msgid "This slot replays content aired by continue slots earlier in the period."
 msgstr ""
 
+#: src/pages/channels/ChannelsPage.tsx:278
+msgid "This will delete all Kairos-synced channels from Tunarr and pull a fresh copy from Kairos. Use this if a channel is stuck or misconfigured. This action cannot be undone."
+msgstr ""
+
 #: src/components/settings/ffmpeg/TranscodeConfigSettingsForm.tsx:129
 msgid "Threads"
 msgstr ""
@@ -4029,7 +4058,7 @@ msgstr ""
 msgid "Tracks"
 msgstr ""
 
-#: src/pages/channels/ChannelsPage.tsx:373
+#: src/pages/channels/ChannelsPage.tsx:459
 #: src/pages/system/TroubleshootPage.tsx:844
 msgid "Transcode Config"
 msgstr ""
@@ -4073,7 +4102,7 @@ msgstr ""
 msgid "Tunarr Backend URL:"
 msgstr ""
 
-#: src/components/Video.tsx:103
+#: src/components/Video.tsx:146
 msgid "Tunarr is currently configured to use the AC3 audio encoder. This audio format is not supported by browsers. The resultant stream will likely not have audio or will not play at all."
 msgstr ""
 
