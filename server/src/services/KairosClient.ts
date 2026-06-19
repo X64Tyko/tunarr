@@ -30,6 +30,8 @@ export type KairosNowResponse = {
   title: string;
   block_id: string;
   wall_clock_start_ms: number;
+  wall_clock_end_ms: number;
+  is_filler?: boolean;
   show_title?: string;
   show_id?: string;
   season?: number;
@@ -67,10 +69,12 @@ export class KairosClient {
     return !!this.baseUrl;
   }
 
-  async getNow(channelId: string): Promise<KairosNowResponse> {
-    const res = await fetch(
-      `${this.baseUrl}/api/channels/${channelId}/now`,
-    );
+  async getNow(channelId: string, atMs?: number): Promise<KairosNowResponse> {
+    const url =
+      atMs !== undefined
+        ? `${this.baseUrl}/api/channels/${channelId}/now?at=${atMs}`
+        : `${this.baseUrl}/api/channels/${channelId}/now`;
+    const res = await fetch(url);
     if (!res.ok) {
       throw new Error(
         `Kairos /now returned HTTP ${res.status} for channel ${channelId}`,

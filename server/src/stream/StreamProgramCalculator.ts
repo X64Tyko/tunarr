@@ -327,7 +327,7 @@ export class StreamProgramCalculator {
 
     let kairosItem: KairosNowResponse;
     try {
-      kairosItem = await this.kairosClient.getNow(kairosChannelId);
+      kairosItem = await this.kairosClient.getNow(kairosChannelId, nowMs);
     } catch (err) {
       return Result.failure(
         new StreamProgramCalculatorError(
@@ -337,15 +337,30 @@ export class StreamProgramCalculator {
       );
     }
 
-    const startOffset = Math.max(0, nowMs - kairosItem.wall_clock_start_ms);
-    const streamDuration = Math.max(0, kairosItem.duration_ms - startOffset);
+    const isFiller = kairosItem.is_filler === true;
+    const fileDurationMs = kairosItem.duration_ms;
+    const slotEndMs = kairosItem.wall_clock_end_ms;
+    const rawOffset = Math.max(0, nowMs - kairosItem.wall_clock_start_ms);
+    // For filler clips shorter than their scheduled slot, mod the offset so the
+    // clip loops rather than seeking past EOF.
+    const startOffset =
+      isFiller && fileDurationMs > 0 ? rawOffset % fileDurationMs : rawOffset;
+    const clipRemaining =
+      fileDurationMs > startOffset ? fileDurationMs - startOffset : 0;
+    const slotRemaining = Math.max(0, slotEndMs - nowMs);
+    // For filler: play only until the clip ends or the slot ends (whichever
+    // comes first); the caller will re-request and loop. For regular content
+    // the slot duration equals the file duration so both paths are equivalent.
+    const streamDuration = isFiller
+      ? Math.min(clipRemaining, slotRemaining)
+      : Math.max(0, fileDurationMs - startOffset);
 
     this.kairosClient.setLastItem(channelId, {
       itemId: kairosItem.item_id,
       itemType: kairosItem.item_type,
       blockId: kairosItem.block_id,
       durationMs: kairosItem.duration_ms,
-      wallClockEndMs: kairosItem.wall_clock_start_ms + kairosItem.duration_ms,
+      wallClockEndMs: slotEndMs,
     });
 
     const lineupItem: KairosStreamLineupItem = {
