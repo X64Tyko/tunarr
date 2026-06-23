@@ -18,6 +18,7 @@ import { container } from '../container.ts';
 import { TruthyQueryParam } from '../types/schemas.ts';
 import { getBooleanEnvVar, TUNARR_ENV_VARS } from '../util/env.ts';
 import { isDev, isNonEmptyString, run } from '../util/index.js';
+import { getChannelId } from '../util/channels.js';
 import { channelsApi } from './channelsApi.js';
 import { nativePlaybackApi } from './nativePlaybackApi.js';
 import { CreditsApiController } from './creditsApi.ts';
@@ -248,10 +249,17 @@ export const apiRouter: RouterPluginAsyncCallback = async (fastify) => {
           if (!epgResponse.ok) {
             return res.status(502).send('Kairos EPG unavailable');
           }
+          // Kairos uses "kairos-N" channel IDs; translate to getChannelId(N)
+          // format so they match the tvg-ids emitted in the M3U playlist.
+          const rawXml = await epgResponse.text();
+          const translatedXml = rawXml.replace(
+            /kairos-(\d+)/g,
+            (_, numStr: string) => getChannelId(parseInt(numStr, 10)),
+          );
           return res
             .header('Cache-Control', 'no-store')
             .header('Content-Type', 'application/xml')
-            .send(await epgResponse.text());
+            .send(translatedXml);
         }
 
         const xmltvSettings = req.serverCtx.settings.xmlTvSettings();
